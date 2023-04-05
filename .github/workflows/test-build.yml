@@ -1,0 +1,51 @@
+################################################################################
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileType: OTHER
+# SPDX-FileCopyrightText: (c) 2021-2022, The Raetro authors and contributors
+################################################################################
+name: Irem M92 Test Build
+################################################################################
+on:
+  push:
+    branches:
+      - generate
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - generate
+    paths-ignore:
+      - '**.md'
+################################################################################
+jobs:
+  synthesis:
+    runs-on: ubuntu-latest
+    container: raetro/quartus:17.0
+    ############################################################################
+    steps:
+      ##########################################################################
+      # 1 - Checkout repository
+      ##########################################################################
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      ##########################################################################
+      # 2 - RTL synthesis
+      ##########################################################################
+      - name: Run compilation flow
+        run: quartus_sh --flow compile Arcade-IremM92.qpf
+      ##########################################################################
+      - name: Create Date Tag
+        id: version
+        run: echo "::set-output name=version::$(date +'%Y%m%d')"     # Use date as version
+      ##########################################################################
+      - name: Copy files and tag with date
+        run: |
+          mkdir -p staging
+          cp output_files/Arcade-IremM92.rbf staging/Arcade-IremM92_${{ steps.version.outputs.version }}.rbf
+          cp -R releases/*.mra staging
+      ##########################################################################
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Arcade-IremM92_${{ steps.version.outputs.version }}
+          path: staging/
