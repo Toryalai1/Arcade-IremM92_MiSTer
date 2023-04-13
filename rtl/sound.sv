@@ -30,25 +30,24 @@ module sound(
     input sdr_rdy
 );
 
-// TODO
-// Sample ROM -- Done
-// Sound RAM -- Done
-// YM2151 -- Done
-// GA20
-// Sample Filters
-// Output Filters
-// V35
-// Latches -- Done
-// Sound ROM -- Done
-// Clock dividers - Done
 
 wire [15:0] sample_out, fm_sample, fm_sample_flt;
 
-always_ff @(posedge clk_sys) begin
-    reg [16:0] sum;
+wire [11:0] fm_scale = int'(2.6 * 128);
+wire [11:0] pcm_scale = int'(1.90 * 128);
 
-    sum <= { sample_out[15], sample_out } + { fm_sample_flt[15], fm_sample_flt };
-    sample <= sum[16:1] + {sum[16], sum[16], sum[15:2]};
+always_ff @(posedge clk_sys) begin
+    reg [27:0] sum;
+    reg [27:0] fm;
+    reg [27:0] pcm;
+
+    fm  <= $signed(fm_sample_flt) * fm_scale;
+    pcm <= $signed(sample_out)    * pcm_scale;
+
+    sum <= fm + pcm;
+    if (&sum[27:22] || &(~sum[27:22])) sample <= sum[22:7];
+    else if (sum[27]) sample <= 16'h8000;
+    else sample <= 16'h7fff; 
 end
 
 wire ce_28m, ce_14m, ce_7m, ce_3_5m, ce_1_7m;
@@ -83,7 +82,7 @@ assign latch_dout = main_latch;
 wire [15:0] cpu_word_dout = cpu_addr[0] ? { cpu_dout[7:0], 8'h00 } : cpu_dout;
 wire [1:0] cpu_word_be = cpu_addr[0] ? { cpu_be[0], 1'b0 } : cpu_be;
 
-singleport_ram #(.widthad(13), .width(8)) ram_0(
+singleport_ram #(.widthad(13), .width(8), .name("SRA0")) ram_0(
     .clock(clk_sys),
     .wren(ram_cs & cpu_wr & cpu_word_be[0]),
     .address(cpu_addr[13:1]),
@@ -91,7 +90,7 @@ singleport_ram #(.widthad(13), .width(8)) ram_0(
     .q(ram_dout[7:0])
 );
 
-singleport_ram #(.widthad(13), .width(8)) ram_1(
+singleport_ram #(.widthad(13), .width(8), .name("SRA1")) ram_1(
     .clock(clk_sys),
     .wren(ram_cs & cpu_wr & cpu_word_be[1]),
     .address(cpu_addr[13:1]),
@@ -99,7 +98,7 @@ singleport_ram #(.widthad(13), .width(8)) ram_1(
     .q(ram_dout[15:8])
 );
 
-singleport_ram #(.widthad(16), .width(8)) rom_0(
+singleport_ram #(.widthad(16), .width(8), .name("SRO0")) rom_0(
     .clock(clk_sys),
     .wren(rom_wr & ~rom_addr[0]),
     .address(rom_wr ? rom_addr[16:1] : cpu_addr[16:1]),
@@ -107,7 +106,7 @@ singleport_ram #(.widthad(16), .width(8)) rom_0(
     .q(rom_dout[7:0])
 );
 
-singleport_ram #(.widthad(16), .width(8)) rom_1(
+singleport_ram #(.widthad(16), .width(8), .name("SRO1")) rom_1(
     .clock(clk_sys),
     .wren(rom_wr & rom_addr[0]),
     .address(rom_wr ? rom_addr[16:1] : cpu_addr[16:1]),
